@@ -3,7 +3,6 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
 const { Telegraf } = require('telegraf');
 const { OpenAI } = require('openai');
 const { bot2 } = require('./bots/bot2');
@@ -76,20 +75,17 @@ function obtenerSugerencias(direccionBuscada, listaDirecciones, limite = 3) {
     .map(s => s.direccion);
 }
 
-async function verificarDireccion(_regionNoUsar, comunaInput, direccionInput) {
+function verificarDireccion(_regionNoUsar, comunaInput, direccionInput) {
   const archivoComuna = comunaInput.normalize("NFD").replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, '_');
-  const urlArchivo = `https://teby86.github.io/comunas-json/${archivoComuna}.json`;
-  console.log(`🌐 Buscando archivo remoto: ${urlArchivo}`);
+  const rutaArchivo = path.resolve(__dirname, 'comunas', archivoComuna + '.json');
+  console.log(`📂 Buscando archivo: ${rutaArchivo}`);
 
-  let json;
-  try {
-    const respuesta = await axios.get(urlArchivo);
-    json = respuesta.data;
-  } catch (error) {
-    console.log('❌ Archivo remoto no encontrado o error de red');
+  if (!fs.existsSync(rutaArchivo)) {
+    console.log('❌ Archivo no encontrado');
     return { error: `⚠️ No se encontró la comuna "${comunaInput}".` };
   }
 
+  const json = JSON.parse(fs.readFileSync(rutaArchivo));
   const regionExtraida = json.region || 'Región desconocida';
   const direcciones = json.direcciones || [];
   const listaNormalizada = direcciones.map(dir => typeof dir === 'string' ? normalizarTexto(dir) : normalizarTexto(dir.direccion));
@@ -136,7 +132,6 @@ async function verificarDireccion(_regionNoUsar, comunaInput, direccionInput) {
     };
   }
 }
-
 
 // 🧠 Procesar dirección con GPT
 async function procesarDireccionIA(texto) {
