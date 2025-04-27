@@ -1,41 +1,31 @@
-# Imagen base de Node.js con Chromium compatible con Puppeteer
-FROM node:20
+# Imagen base con Node 20 + Debian Bookworm
+FROM node:20-bookworm-slim
 
-# Instala las dependencias necesarias para Puppeteer
+# 1. Instala dependencias esenciales para Puppeteer
 RUN apt-get update && apt-get install -y \
-    wget \
-    ca-certificates \
+    chromium \
     fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libgdk-pixbuf2.0-0 \
-    libnspr4 \
     libnss3 \
-    libx11-xcb1 \
+    libx11-6 \
+    libxcb1 \
     libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    xdg-utils \
-    --no-install-recommends \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Establece el directorio de trabajo
+# 2. Configuración de Puppeteer
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    NODE_ENV=production
+
+# 3. Directorio de trabajo
 WORKDIR /app
 
-# Copia los archivos necesarios
-COPY package*.json ./
-RUN npm install
+# 4. Copia e instala dependencias (usa cache de Docker)
+COPY package*.json .
+RUN npm install --production
 
-# Copia todo el código
+# 5. Copia el resto del código
 COPY . .
 
-# Exponer el puerto si lo necesitas
-EXPOSE 3000
-
-# Iniciar el bot
+# 6. Comando de inicio
 CMD ["npm", "start"]
