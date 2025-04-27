@@ -1,6 +1,7 @@
 // ✅ gestor con IA para factibilidad — versión funcional con GPT y validación JSON
 
-require('dotenv').config();
+const dotenv = require('dotenv');
+dotenv.config();
 const fs = require('fs');
 const path = require('path');
 const { Telegraf } = require('telegraf');
