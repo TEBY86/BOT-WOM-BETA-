@@ -1,7 +1,7 @@
-# Imagen base
+# Imagen base: Node.js 20 slim basada en Debian Bookworm
 FROM node:20-bookworm-slim
 
-# 1. Instalación de dependencias de sistema
+# Instalación de dependencias de sistema necesarias para Puppeteer
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -9,27 +9,39 @@ RUN apt-get update && apt-get install -y \
     libx11-6 \
     libxcb1 \
     libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libgbm1 \
+    libasound2 \
+    libpangocairo-1.0-0 \
+    libpango-1.0-0 \
+    libxrandr2 \
+    libxss1 \
+    libgtk-3-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Configuración Puppeteer
+# Configuración de variables de entorno para Puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     NODE_ENV=production
 
-# 3. Crear directorio app
+# Crear directorio de trabajo
 WORKDIR /app
 
-# 4. Copiar solo package.json primero
+# Copiar package.json y package-lock.json primero para aprovechar el caché
 COPY package.json package-lock.json ./
 
-# 5. Instalar dependencias
+# Instalar dependencias de Node.js
 RUN npm install
 
-# 6. Copiar todo el resto del proyecto
+# Copiar el resto del proyecto
 COPY . .
 
-# 7. Puerto que usa su app (opcional)
-EXPOSE 3000
-
-# 8. Comando de inicio
+# Comando de inicio
 CMD ["npm", "start"]
