@@ -1,7 +1,4 @@
-# Imagen base: Node.js 20 slim basada en Debian Bookworm
 FROM node:20-bookworm-slim
-
-# Instalación de dependencias de sistema necesarias para Puppeteer
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-liberation \
@@ -25,23 +22,12 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libgtk-3-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Configuración de variables de entorno para Puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     NODE_ENV=production
-
-# Crear directorio de trabajo
 WORKDIR /app
-
-# Copiar package.json y package-lock.json primero para aprovechar el caché
 COPY package.json package-lock.json ./
-
-# Instalar dependencias de Node.js
 RUN npm install
-
-# Copiar el resto del proyecto
 COPY . .
-
-# Comando de inicio
+RUN ls -la /app && ls -la /app/bots && ls -la /app/comunas
 CMD ["npm", "start"]
