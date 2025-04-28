@@ -39,16 +39,12 @@ async function bot2(ctx, input) {
 
   try {
     browser = await puppeteer.launch({
-      headless: "new",  // Modo headless moderno (entre comillas)
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',  // Evita crashes por memoria
-        '--single-process'          // Reduce uso de recursos
-      ],
+      headless: false,
+      slowMo: 20,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: { width: 1366, height: 900 },
-      timeout: 60000  // Aumenta timeout a 60 segundos
     });
+
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (...) Chrome/123.0.0.0 Safari/537.36');
