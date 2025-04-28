@@ -1,4 +1,5 @@
-// ✅ gestor con IA para factibilidad — versión funcional con GPT y validación JSON
+// ✅ ahora si
+// — versión funcional con GPT y validación JSON
 
 require('dotenv').config();
 const fs = require('fs');
