@@ -137,8 +137,28 @@ function verificarDireccion(_regionNoUsar, comunaInput, direccionInput) {
 // 🧠 Procesar dirección con GPT
 async function procesarDireccionIA(texto) {
   texto = texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
-  const prompt = `Extrae región, comuna, calle y número de esta dirección: "${texto}". Devuélvelo en JSON:
-{ "region": "...", "comuna": "...", "calle": "...", "numero": "..." }\nSi no puedes, responde: { "error": "..." }`;
+
+  const prompt = `Analiza cuidadosamente la siguiente dirección escrita libremente por un usuario.
+
+Extrae únicamente los siguientes campos:
+- comuna (obligatorio, prioridad principal)
+- calle (obligatorio)
+- número (obligatorio)
+- región (si está explícitamente escrita en el texto, inclúyela; si no, deja "")
+
+El texto puede venir en cualquier orden.
+
+Importante:
+- No inventes datos.
+- No asumas datos.
+- No completes región, comuna, calle o número si no están explícitos.
+- Si no puedes encontrar comuna, calle o número, responde únicamente:
+{ "error": "No se pudo interpretar correctamente la dirección" }
+
+Devuelve siempre un JSON con este formato estricto:
+{ "region": "...", "comuna": "...", "calle": "...", "numero": "..." }
+
+Dirección: "${texto}"`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -152,6 +172,7 @@ async function procesarDireccionIA(texto) {
     return { error: '❌ Error interpretando dirección con IA. Intenta nuevamente más tarde.' };
   }
 }
+
 
 function guardarJSONLog(data) {
   const ruta = path.join(__dirname, 'logs', `log-${Date.now()}.json`);
