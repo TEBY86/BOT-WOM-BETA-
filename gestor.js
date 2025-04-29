@@ -10,6 +10,27 @@ const { bot2 } = require('./bots/bot2');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const bot = new Telegraf( process.env.BOT_TOKEN );
+// 🔵 INICIO CAMBIO
+bot.command('admin', async (ctx) => {
+  await ctx.reply(`✏️ Instrucciones:
+
+1️⃣ Escribe primero el comando:
+- /factibilidad → Verifica en base local si la dirección existe (más seguro).
+- /forzar → Envía la dirección directo al sistema WOM, sin validación previa.
+
+2️⃣ Luego ingresa la dirección en este formato:
+
+🌎 Región, 🏙️ Comuna, 🛣️ Calle XXX, 🔢 Número XXX [, 🏢 Torre/Piso XXX] [, 📦 Depto XXX]
+
+✅ Ejemplos:
+- /factibilidad Libertador Bernardo O'Higgins, Rancagua, Calle XXX, Número XXX
+- /forzar Metropolitana, Santiago, Calle XXX, Número XXX, Torre XXX, Depto XXX
+
+📌 Separa cada dato con comas ( , ).`);
+});
+// 🔵 FIN CAMBIO
+
+
 
 function normalizarTexto(texto) {
   return texto.toLowerCase()
