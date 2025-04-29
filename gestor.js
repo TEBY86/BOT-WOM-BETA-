@@ -196,26 +196,26 @@ bot.command('factibilidad', async (ctx) => {
     `${iaResultado.calle} ${iaResultado.numero}`
   );
 
-  if (!resultado.ok) return ctx.reply(resultado.mensaje);
-  if (!resultado.region || !resultado.comuna || !resultado.calle || !resultado.numero) {
-    return ctx.reply('⚠️ La estructura de datos recibida desde la verificación no es válida.');
-  }
-
+// 🔵 INICIO CAMBIO
+if (!resultado.ok) {
+  await ctx.reply(`⚠️ Dirección no encontrada en base local. Intentando directamente en WOM...`);
+} else {
   await ctx.reply(`✅ Dirección verificada: ${resultado.direccion}`);
-  guardarJSONLog({
-    usuario: ctx.from,
-    entrada_original: inputCrudo,
-    analisis_ia: iaResultado,
-    verificarDireccion: resultado,
-    timestamp: new Date().toISOString()
-  });
+}
 
-  // 🔵 INICIO CAMBIO
-  const inputFinal = `${resultado.region}, ${resultado.comuna}, ${resultado.calle}, ${resultado.numero}` + (parteExtra ? `, ${parteExtra}` : '');
-  console.log('➡️ Input final para bot:', inputFinal);
-  // 🔵 FIN CAMBIO
+guardarJSONLog({
+  usuario: ctx.from,
+  entrada_original: inputCrudo,
+  analisis_ia: iaResultado,
+  verificarDireccion: resultado,
+  timestamp: new Date().toISOString()
+});
 
-  await bot2(ctx, inputFinal);
+const inputFinal = `${resultado.region || iaResultado.region}, ${resultado.comuna || iaResultado.comuna}, ${resultado.calle || iaResultado.calle}, ${resultado.numero || iaResultado.numero}` + (parteExtra ? `, ${parteExtra}` : '');
+console.log('➡️ Input final para bot:', inputFinal);
+
+await bot2(ctx, inputFinal);
+// 🔵 FIN CAMBIO
 });
 
 bot.on('text', async (ctx) => {
