@@ -226,6 +226,7 @@ bot.on('text', async (ctx) => {
   }
 });
 
+// 🔵 INICIO CAMBIO
 bot.command('forzar', async (ctx) => {
   const input = ctx.message.text.replace('/forzar', '').trim();
   if (!input || input.split(',').length < 4) {
@@ -234,8 +235,11 @@ bot.command('forzar', async (ctx) => {
 
   await ctx.reply(`🚀 Ejecutando forzado directo con dirección:
 ${input}`);
-  await verificarDireccion(ctx, input);
+
+  // Se elimina la verificación y se envía directo a bot2
+  await bot2(ctx, input);
 });
+// 🔵 FIN CAMBIO
 
 bot.launch();
 console.log('🚀 Bot con IA para factibilidad iniciado.');
