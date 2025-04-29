@@ -210,8 +210,10 @@ bot.command('factibilidad', async (ctx) => {
     timestamp: new Date().toISOString()
   });
 
-  const inputFinal = [resultado.region, resultado.comuna, resultado.calle, resultado.numero, ...partes.slice(4)].join(', ');
+  // 🔵 INICIO CAMBIO
+  const inputFinal = `${resultado.region}, ${resultado.comuna}, ${resultado.calle}, ${resultado.numero}` + (parteExtra ? `, ${parteExtra}` : '');
   console.log('➡️ Input final para bot:', inputFinal);
+  // 🔵 FIN CAMBIO
 
   await bot2(ctx, inputFinal);
 });
