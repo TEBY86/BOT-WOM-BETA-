@@ -120,18 +120,19 @@ async function bot2(ctx, input) {
     // ¡ADVERTENCIA! Estas URLs están hardcodeadas directamente en el código para depuración.
     // Una vez resuelto el problema de Railway, DEBEN volver a ser variables de entorno.
     const womLoginUrl = 'https://sso-ocp4-sr-amp.apps.sr-ocp.wom.cl/auth/realms/customer-care/protocol/openid-connect/auth?client_id=e7c0d592&redirect_uri=https%3A%2F%2Fcustomercareapplicationservice.ose.wom.cl%2Fwomac%2F&state=e42c40c3-f0d7-47c6-8ecd-4d97b22d18e1&response_mode=fragment&response_type=code&scope=openid&nonce=bfed0801-0131-4ec3-bf0b-1bd571658271';
-    const womDireccionUrl = 'https://customercareapplicationservice.ose.wom.cl/womac/sac';
+    // womDireccionUrl no se usará para un page.goto directo, pero se mantiene para referencia si es necesario.
+    // const womDireccionUrl = 'https://customercareapplicationservice.ose.wom.cl/womac/sac';
     // 🔴 FIN CAMBIO
 
     // Loguear estado de las variables de entorno (solo para user/pass ahora)
     log(`WOM_LOGIN_URL: (Hardcodeada)`);
-    log(`WOM_DIRECCION_URL: (Hardcodeada)`);
+    // log(`WOM_DIRECCION_URL: (No usada para goto explícito)`); // Comentado ya que no se usa para goto
     log(`WOM_USER: ${womUser ? 'Definido' : 'UNDEFINED'}`);
     log(`WOM_PASS: ${womPass ? 'Definido' : 'UNDEFINED'}`);
 
     // Verificar que las variables de entorno cruciales (USER, PASS) estén definidas
-    if (!womUser || !womPass) {
-        throw new Error('Variables de entorno de WOM (USER, PASS) no están definidas. Por favor, revisa la configuración en Railway.');
+    if (!womLoginUrl || !womUser || !womPass) { // womDireccionUrl ya no es obligatoria aquí
+        throw new Error('Variables de entorno de WOM (LOGIN_URL, USER, PASS) no están definidas. Por favor, revisa la configuración en Railway.');
     }
 
     log(`Navegando a la URL de inicio de sesión: ${womLoginUrl}`);
@@ -149,54 +150,60 @@ async function bot2(ctx, input) {
         return;
     }
 
-    // Pasos de interacción para el login
-    const pasosLogin = [
-        { selector: '#username', type: 'type', value: womUser, name: 'Usuario' },
-        { selector: '#password', type: 'type', value: womPass, name: 'Contraseña' },
-        { selector: '#kc-login', type: 'click', name: 'Botón Ingresar' }
-    ];
+    // ✅ INICIO CAMBIO: Lógica de login del usuario
+    log('Ejecutando lógica de login proporcionada por el usuario...');
+    await page.waitForSelector('#username', { visible: true, timeout: 15000 });
+    await page.type('#username', womUser);
+    log(`Usuario ingresado en #username.`);
 
-    for (const paso of pasosLogin) {
-        log(`Ejecutando paso de login: ${paso.name} (Selector: ${paso.selector})`);
-        await page.waitForSelector(paso.selector, { visible: true, timeout: 15000 });
-        const element = await page.$(paso.selector);
-        if (element) {
-            if (paso.type === 'type') {
-                await element.click({ clickCount: 3 }); // Triple click para seleccionar todo
-                await element.press('Backspace'); // Borrar contenido existente
-                await element.type(paso.value);
-                log(`Texto ingresado en ${paso.name}.`); // No loguear el valor por seguridad
-            } else if (paso.type === 'click') {
-                await element.click();
-                log(`Click en ${paso.name}.`);
-            }
-        } else {
-            throw new Error(`Elemento de login no encontrado: ${paso.selector}`);
-        }
-        await page.waitForTimeout(500); // Pequeña pausa entre pasos
-    }
+    await page.waitForSelector('#password', { visible: true, timeout: 15000 });
+    await page.type('#password', womPass);
+    log(`Contraseña ingresada en #password.`);
 
-    log('Inicio de sesión completado. Esperando navegación o elementos post-login...');
-    // Esperar la navegación o un selector específico después del login
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => log('No hubo navegación explícita después del login o timeout.'));
-    log(`URL actual después del login: ${page.url()}`);
+    await page.waitForSelector('#kc-login', { visible: true, timeout: 15000 });
+    log(`Haciendo click en #kc-login y esperando navegación...`);
+    await Promise.all([
+        page.click('#kc-login'),
+        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }), // Aumentar timeout para navegación post-login
+    ]);
+    log('Navegación post-login detectada.');
+    // ✅ FIN CAMBIO
 
-    log(`Navegando a la URL de dirección: ${womDireccionUrl}`);
-    try {
-        await page.goto(womDireccionUrl, { waitUntil: 'networkidle2', timeout: 90000 });
-        log(`Página de dirección cargada. URL actual: ${page.url()}`);
-    } catch (navigationError) {
-        log(`❌ ERROR DE NAVEGACIÓN (DIRECCIÓN): No se pudo cargar la página de dirección de WOM. Detalles: ${navigationError.message}`);
-        await ctx.reply(`❌ Error al cargar la página de dirección de WOM: ${navigationError.message}.`);
-        await tomarCapturaBuffer(page, 'Captura de pantalla al fallar la navegación a la página de dirección.');
+    // ✅ INICIO CAMBIO: Depuración post-login y manejo de redirección
+    let currentUrlAfterLogin = page.url();
+    log(`URL actual INMEDIATAMENTE después de intentar login y esperar navegación: ${currentUrlAfterLogin}`);
+    await tomarCapturaBuffer(page, 'Captura después de intentar login y esperar navegación.');
+
+    // Comprobar si la URL sigue siendo la de login (o una URL de error relacionada con login)
+    if (currentUrlAfterLogin.startsWith('https://sso-ocp4-sr-amp.apps.sr-ocp.wom.cl/auth/')) {
+        log('❌ ERROR DE LOGIN: El bot sigue en la página de inicio de sesión después de intentar loguearse.');
+        await ctx.reply('❌ Error: Parece que el inicio de sesión falló o no se completó. Por favor, verifica las credenciales WOM (usuario/contraseña) o los selectores de los campos de login.');
         const pageHtml = await page.content();
-        log('Contenido HTML de la página al fallar la navegación a la dirección (primeras 500 chars):', pageHtml.substring(0, 500));
+        log('Contenido HTML de la página de login (primeras 500 chars) después de intentar login:', pageHtml.substring(0, 500));
         if (browser) await browser.close();
         return;
     }
+    // ✅ FIN CAMBIO
+
+    // 🔴 CAMBIO CLAVE: Eliminada la navegación explícita a womDireccionUrl.
+    // El bot ahora confía en la redirección natural después del login.
+    // log(`Navegando a la URL de dirección: ${womDireccionUrl}`);
+    // try {
+    //     await page.goto(womDireccionUrl, { waitUntil: 'networkidle2', timeout: 90000 });
+    //     log(`Página de dirección cargada. URL actual: ${page.url()}`);
+    // } catch (navigationError) {
+    //     log(`❌ ERROR DE NAVEGACIÓN (DIRECCIÓN): No se pudo cargar la página de dirección de WOM. Detalles: ${navigationError.message}`);
+    //     await ctx.reply(`❌ Error al cargar la página de dirección de WOM: ${navigationError.message}.`);
+    //     await tomarCapturaBuffer(page, 'Captura de pantalla al fallar la navegación a la página de dirección.');
+    //     const pageHtml = await page.content();
+    //     log('Contenido HTML de la página al fallar la navegación a la dirección (primeras 500 chars):', pageHtml.substring(0, 500));
+    //     if (browser) await browser.close();
+    //     return;
+    // }
 
     // Rellenar la dirección
     log(`Ingresando dirección: ${calle} ${numero}`);
+    // Asumimos que después del login exitoso, la página actual ya es la de ingreso de dirección
     await page.waitForSelector('input#direccion', { visible: true, timeout: 15000 });
     const inputDireccion = await page.$('input#direccion');
     await inputDireccion.click({ clickCount: 3 }); // Seleccionar todo el texto
