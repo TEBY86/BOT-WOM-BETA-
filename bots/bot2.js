@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer-extra'); // Importa Puppeteer con soporte para plugins
 const StealthPlugin = require('puppeteer-extra-plugin-stealth'); // Plugin para evitar detección como bot
-require('dotenv').config(); // Carga variables de entorno desde .env
+require('dotenv').config(); // Carga variables de entorno desde .env (para uso local)
 
 puppeteer.use(StealthPlugin()); // Aplica el plugin de stealth para evitar bloqueos en el sitio
 
@@ -112,21 +112,26 @@ async function bot2(ctx, input) {
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     log('User Agent configurado.');
 
-    // Obtener variables de entorno
-    const womLoginUrl = process.env.WOM_LOGIN_URL;
-    const womDireccionUrl = process.env.WOM_DIRECCION_URL;
+    // Obtener variables de entorno - WOM_USER y WOM_PASS deben seguir viniendo de ENV por seguridad
     const womUser = process.env.WOM_USER;
     const womPass = process.env.WOM_PASS;
 
-    // Loguear estado de las variables de entorno
-    log(`WOM_LOGIN_URL: ${womLoginUrl ? 'Definido' : 'UNDEFINED'}`);
-    log(`WOM_DIRECCION_URL: ${womDireccionUrl ? 'Definido' : 'UNDEFINED'}`);
+    // 🔴 INICIO CAMBIO: URLs hardcodeadas para depuración
+    // ¡ADVERTENCIA! Estas URLs están hardcodeadas directamente en el código para depuración.
+    // Una vez resuelto el problema de Railway, DEBEN volver a ser variables de entorno.
+    const womLoginUrl = 'https://sso-ocp4-sr-amp.apps.sr-ocp.wom.cl/auth/realms/customer-care/protocol/openid-connect/auth?client_id=e7c0d592&redirect_uri=https%3A%2F%2Fcustomercareapplicationservice.ose.wom.cl%2Fwomac%2F&state=e42c40c3-f0d7-47c6-8ecd-4d97b22d18e1&response_mode=fragment&response_type=code&scope=openid&nonce=bfed0801-0131-4ec3-bf0b-1bd571658271';
+    const womDireccionUrl = 'https://customercareapplicationservice.ose.wom.cl/womac/sac';
+    // 🔴 FIN CAMBIO
+
+    // Loguear estado de las variables de entorno (solo para user/pass ahora)
+    log(`WOM_LOGIN_URL: (Hardcodeada)`);
+    log(`WOM_DIRECCION_URL: (Hardcodeada)`);
     log(`WOM_USER: ${womUser ? 'Definido' : 'UNDEFINED'}`);
     log(`WOM_PASS: ${womPass ? 'Definido' : 'UNDEFINED'}`);
 
-    // Verificar que las variables de entorno cruciales estén definidas
-    if (!womLoginUrl || !womUser || !womPass || !womDireccionUrl) {
-        throw new Error('Variables de entorno de WOM (URL, USER, PASS) no están definidas. Por favor, revisa la configuración en Railway.');
+    // Verificar que las variables de entorno cruciales (USER, PASS) estén definidas
+    if (!womUser || !womPass) {
+        throw new Error('Variables de entorno de WOM (USER, PASS) no están definidas. Por favor, revisa la configuración en Railway.');
     }
 
     log(`Navegando a la URL de inicio de sesión: ${womLoginUrl}`);
@@ -178,9 +183,7 @@ async function bot2(ctx, input) {
 
     log(`Navegando a la URL de dirección: ${womDireccionUrl}`);
     try {
-        // Esta es la línea donde se navega a la página de dirección.
-        // Asegúrate de que `process.env.WOM_DIRECCION_URL` contenga la URL correcta.
-        await page.goto(womDireccionUrl, { waitUntil: 'networkidle2', timeout: 90000 }); // <-- Línea para cambiar si es necesario
+        await page.goto(womDireccionUrl, { waitUntil: 'networkidle2', timeout: 90000 });
         log(`Página de dirección cargada. URL actual: ${page.url()}`);
     } catch (navigationError) {
         log(`❌ ERROR DE NAVEGACIÓN (DIRECCIÓN): No se pudo cargar la página de dirección de WOM. Detalles: ${navigationError.message}`);
