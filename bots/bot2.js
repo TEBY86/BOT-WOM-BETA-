@@ -169,7 +169,7 @@ async function bot2(ctx, input) {
 
         // Navegar directamente a la URL de dirección si es necesario, o esperar la redirección
         // Asegúrate de que esta URL sea la correcta después del login
-        await page.goto(process.env.WOM_DIRECCION_URL || 'https://example.com/address', { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.goto(process.env.WOM_DIRECCION_URL || 'https://sso-ocp4-sr-amp.apps.sr-ocp.wom.cl/auth/realms/customer-care/protocol/openid-connect/auth?client_id=e7c0d592&redirect_uri=https%3A%2F%2Fcustomercareapplicationservice.ose.wom.cl%2Fwomac%2F&state=e42c40c3-f0d7-47c6-8ecd-4d97b22d18e1&response_mode=fragment&response_type=code&scope=openid&nonce=bfed0801-0131-4ec3-bf0b-1bd571658271', { waitUntil: 'networkidle2', timeout: 30000 });
         console.log('[BOT2] Página de dirección cargada.');
 
         // Rellenar la dirección
