@@ -163,7 +163,7 @@ async function bot2(ctx, input) {
     await page.waitForSelector('#kc-login', { visible: true, timeout: 15000 });
     log(`Haciendo click en #kc-login y esperando navegación...`);
     await Promise.all([
-        page.click('#kc-login'),
+        page.click('#kc-login', { delay: 50 }), // Simula un clic más humano con un pequeño retraso
         page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 }), // Aumentar timeout para navegación post-login
     ]);
     log('Navegación post-login detectada.');
