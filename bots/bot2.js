@@ -1,300 +1,244 @@
-const puppeteer = require('puppeteer-extra'); // Importa Puppeteer con soporte para plugins
-const StealthPlugin = require('puppeteer-extra-plugin-stealth'); // Plugin para evitar detección como bot
-require('dotenv').config(); // Carga variables de entorno desde .env
+// bots/bot2.js (CONTENIDO CORREGIDO PARA MODO HEADLESS)
 
-puppeteer.use(StealthPlugin()); // Aplica el plugin de stealth para evitar bloqueos en el sitio
+require('dotenv').config(); // Carga variables de entorno para bot2.js
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
+puppeteer.use(StealthPlugin());
+
+/**
+ * Función auxiliar para verificar si un texto contiene palabras clave de departamento.
+ * @param {string} texto - El texto a verificar.
+ * @returns {boolean} True si contiene palabras clave de departamento, false en caso contrario.
+ */
 function contieneDepartamento(texto) {
-  const claves = ['TORRE', 'DEPTO', 'PISO', 'CASA', 'BLOCK', 'EDIFICIO', 'A', 'B', 'C', 'D', 'E', 'F', '1', '2', '3', '4', '5', '6'];
-  return claves.some(clave => texto.toUpperCase().includes(clave));
+    const palabrasClave = [
+        'torre', 'depto', 'dpto', 'piso', 'casa', 'block', 'edificio',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
+        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'
+    ];
+    const textoNormalizado = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return palabrasClave.some(palabra => textoNormalizado.includes(palabra));
 }
 
-async function bot2(ctx, input) {
-  // ¡IMPORTANTE! La declaración de 'log' DEBE estar al principio de la función bot2
-  const log = (msg) => console.log(`[${new Date().toISOString()}] ${msg}`);
-
-  const [region, comuna, calle, numero, torre, depto] = input.split(',').map(x => x.trim());
-
-  // --- DEBUG LOGS: Valores de entrada ---
-  log(`DEBUG: Input recibido: "${input}"`);
-  log(`DEBUG: Región: "${region}", Comuna: "${comuna}", Calle: "${calle}", Número: "${numero}"`);
-  log(`DEBUG: Torre: "${torre}", Depto: "${depto}"`);
-  // --- FIN DEBUG LOGS ---
-
-  if (!region || !comuna || !calle || !numero) {
-    return ctx.reply('❗ Formato incorrecto. Usa: /factibilidad Región, Comuna, Calle, Número[, Torre[, Depto]]');
-  }
-
-  ctx.reply('🔍 Consultando factibilidad técnica en MAT de WOM, un momento...');
-
-  async function tomarCapturaBuffer(page) {
-    await page.waitForTimeout(1000);
-    const lupa = await page.$('label.input_icon--left.icono-lupa');
-    if (lupa) {
-      await ctx.reply('🔎 Haciendo clic en la lupa para confirmar selección...');
-      await lupa.click();
-      await page.waitForTimeout(4000);
-    }
-    return await page.screenshot({ fullPage: true });
-  }
-
-  let browser;
-  try {
-    browser = await puppeteer.launch({
-      headless: false,
-      slowMo: 20,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      defaultViewport: { width: 1366, height: 900 },
-    });
-
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (...) Chrome/123.0.0.0 Safari/537.36');
-
-    // --- Añadir listeners para depuración de carga de página ---
-    page.on('console', (msg) => log(`[PAGE CONSOLE] ${msg.type().toUpperCase()}: ${msg.text()}`));
-    page.on('pageerror', (err) => log(`[PAGE ERROR] ${err.message}`));
-    page.on('response', (response) => log(`[PAGE RESPONSE] URL: ${response.url()} | Status: ${response.status()}`));
-    page.on('error', (err) => log(`[BROWSER ERROR] ${err.message}`));
-    // --- Fin de listeners ---
-
-    try {
-      const response = await page.goto('https://sso-ocp4-sr-amp.apps.sr-ocp.wom.cl/auth/realms/customer-care/protocol/openid-connect/auth?client_id=e7c0d592&redirect_uri=https%3A%2F%2Fcustomercareapplicationservice.ose.wom.cl%2Fwomac%2Flogin&state=d213955b-7112-4036-b60d-a4b77940cde5&response_mode=fragment&response_type=code&scope=openid&nonce=43e8fbde-b45e-46db-843f-4482bbed44b2/', { waitUntil: 'load', timeout: 120000 });
-      log('✅ Navegando a la página de inicio de sesión de WOM.');
-      if (response) {
-        log(`DEBUG: Estado de la respuesta de navegación: ${response.status()} - ${response.url()}`);
-      } else {
-        log('DEBUG: La navegación no devolvió una respuesta (posiblemente caché o error de red muy temprano).');
-      }
-    } catch (navigationError) {
-      log(`❌ ERROR DE NAVEGACIÓN: No se pudo cargar la página de WOM. Detalles: ${navigationError.message}`);
-      await ctx.reply('❌ Error al cargar la página de WOM. Por favor, verifica la URL o tu conexión a internet.');
-      try {
-        const errorScreenshotBuffer = await page.screenshot({ fullPage: true });
-        await ctx.replyWithPhoto({ source: errorScreenshotBuffer }, { caption: 'Captura de pantalla al fallar la navegación inicial.' });
-        log('✅ Captura de pantalla tomada al fallar la navegación inicial.');
-      } catch (screenshotError) {
-        log(`⚠️ No se pudo tomar captura de pantalla al fallar la navegación: ${screenshotError.message}`);
-      }
-      if (browser) await browser.close();
-      return; 
-    }
-
-    await page.type('#username', process.env.WOM_USER);
-    await page.type('#password', process.env.WOM_PASS);
-    await Promise.all([
-      page.click('#kc-login'),
-      page.waitForNavigation({ waitUntil: 'networkidle2' }),
-    ]);
-
-    await page.waitForSelector('#Button_Opcion_Top_Fact_Tec', { visible: true });
-    await page.click('#Button_Opcion_Top_Fact_Tec');
-    await ctx.reply('✅ Entramos a la sección "Factibilidad Técnica"...');
-
-    await page.waitForSelector('input#direccion', { visible: true });
-    const inputDireccion = await page.$('input#direccion');
-    await inputDireccion.click({ clickCount: 3 });
-    await inputDireccion.press('Backspace');
-    await page.waitForTimeout(500);
-
-    const calleFormateada = region.trim().toUpperCase() === "LIBERTADOR BERNARDO O'HIGGINS"
-      ? calle.replace(/LIBERTADOR BERNARDO O['’]HIGGINS/gi, 'LIB GRAL BERNARDO O HIGGINS')
-      : calle;
-
-    await inputDireccion.type(`${calleFormateada} ${numero}`, { delay: 100 });
-    await page.waitForTimeout(2000);
-    await inputDireccion.press('Backspace');
-    await page.waitForTimeout(1500);
-
-    const opcionesVisibles = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll('ul.opciones li')).map(el => el.textContent.trim()).filter(Boolean);
-    });
-
-    let mensajeOpciones = '';
-    opcionesVisibles.forEach((opcion, index) => {
-      mensajeOpciones += `${index + 1}. ${opcion}\n`;
-    });
-    if (mensajeOpciones.length > 0) {
-      await ctx.reply(`📋 Opciones desplegadas por el sistema:\n${mensajeOpciones}`);
-    } else {
-      await ctx.reply('⚠️ No se detectaron opciones visibles en el desplegable.');
-    }
-
-    const posiblesOpciones = await page.$x(`//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚ', 'abcdefghijklmnopqrstuvwxyzáéíóú'), '${(calleFormateada + ' ' + numero).toLowerCase()}')]`);
-    await ctx.reply(`� Opciones encontradas: ${posiblesOpciones.length}`);
-
-    let seleccionada = false;
-    for (const opcion of posiblesOpciones) {
-      const texto = await page.evaluate(el => el.textContent.trim(), opcion);
-      if (texto.toUpperCase().includes(calle.toUpperCase()) && texto.toUpperCase().includes(numero.toUpperCase())) {
-        const box = await opcion.boundingBox();
-        if (box) {
-          await ctx.reply(`🟢 Dirección encontrada: ${texto}`);
-          await opcion.scrollIntoView(); 
-          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-          await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-          await page.waitForTimeout(1000);
-          seleccionada = true;
-          break;
+/**
+ * Simula visualmente el movimiento del cursor en la página (para depuración).
+ * @param {object} page - La instancia de la página de Puppeteer.
+ * @param {number} x - Coordenada X.
+ * @param {number} y - Coordenada Y.
+ */
+async function actualizarCursorRojo(page, x, y) {
+    await page.evaluate((x, y) => {
+        let cursor = document.getElementById('puppeteer-cursor');
+        if (!cursor) {
+            cursor = document.createElement('div');
+            cursor.id = 'puppeteer-cursor';
+            cursor.style.position = 'absolute';
+            cursor.style.width = '10px';
+            cursor.style.height = '10px';
+            cursor.style.borderRadius = '50%';
+            cursor.style.backgroundColor = 'red';
+            cursor.style.zIndex = '99999';
+            cursor.style.pointerEvents = 'none';
+            cursor.style.transition = 'transform 0.1s ease-out';
+            document.body.appendChild(cursor);
         }
-      }
+        cursor.style.transform = `translate(${x - 5}px, ${y - 5}px)`;
+    }, x, y);
+}
+
+/**
+ * Automatiza la verificación de factibilidad en el sistema WOM.
+ * @param {object} ctx - Objeto de contexto de Telegraf para responder al usuario.
+ * @param {string} input - La dirección en formato "Región, Comuna, Calle, Número, Torre, Depto".
+ */
+async function bot2(ctx, input) {
+    console.log(`[BOT2] Iniciando bot2 con input: "${input}"`); // Log de inicio de bot2
+
+    const [region, comuna, calle, numero, torre, depto] = input.split(',').map(s => s.trim());
+
+    if (!region || !comuna || !calle || !numero) {
+        console.error('[BOT2] Error: Faltan datos obligatorios de la dirección.');
+        return ctx.reply('⚠️ Error: Por favor, proporciona Región, Comuna, Calle y Número.');
     }
 
-    const lupa = await page.$('label.input_icon--left.icono-lupa');
-    if (lupa) {
-      await ctx.reply('🔎 Confirmando la dirección con clic en la lupa...');
-      await lupa.click();
-      await page.waitForTimeout(2500);
+    let browser;
+    try {
+        await ctx.reply('⏳ Iniciando verificación de factibilidad en el sistema WOM...');
+        console.log('[BOT2] Lanzando navegador...');
 
-      try {
-        await page.waitForSelector('div.drop_down', { visible: true, timeout: 8000 });
-        const opcionesExtra = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll('div.drop_down .item-content')).map(el => el.textContent.trim()).filter(Boolean);
+        browser = await puppeteer.launch({
+            // ✅ CAMBIO CLAVE: Ejecutar en modo headless (sin interfaz gráfica)
+            headless: true, // Cambiado a true
+            slowMo: 20, // Ralentiza las operaciones para observabilidad (útil incluso en headless para depuración lógica)
+            args: [
+                '--no-sandbox', // Necesario para algunos entornos de servidor
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Soluciona problemas de memoria en Docker
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--window-size=1280,800' // Tamaño de ventana por defecto
+            ],
+            defaultViewport: null // Permite que el viewport se ajuste al tamaño de la ventana
         });
 
-        if (opcionesExtra.length > 0) {
-          console.log('📦 Opciones torre/depto disponibles:');
-          opcionesExtra.forEach((texto, idx) => {
-            console.log(`${idx + 1}. ${texto}`);
-          });
+        const page = await browser.newPage();
+        console.log('[BOT2] Navegador lanzado, nueva página creada.');
+
+        // Inyectar la función del cursor rojo para depuración visual (solo si headless es false)
+        if (browser.process().spawnargs.includes('--headless=new') || browser.process().spawnargs.includes('--headless')) {
+             console.log('[BOT2] Ejecutando en modo headless, el cursor rojo no será visible.');
         } else {
-          console.log('⚠️ No se detectaron opciones adicionales tras la lupa.');
-        }
-      } catch (e) {
-        console.warn('⌛ Panel de opciones de torre/depto no apareció a tiempo.');
-        await ctx.reply('⚠️ No se detectó el segundo panel después de la lupa.');
-      }
-    }
-
-    const opcionesFinales = await page.$$('div.drop_down .item-content');
-    let opcionSeleccionadaFinal = false;
-
-    const etiquetasTorre = ['TORRE', 'BLOCK', 'EDIFICIO'];
-    const torreLetra = torre?.split(' ').pop()?.toUpperCase(); 
-    const deptoNumero = depto; 
-
-    for (const opcion of opcionesFinales) {
-      const texto = await page.evaluate(el => el.textContent.trim(), opcion);
-      if (!texto) continue;
-
-      const textoUpper = texto.toUpperCase(); 
-
-      // --- MODIFICACIÓN AQUÍ: Lógica de coincideTorre más precisa usando Regex ---
-      let coincideTorre = false;
-      if (torre && torreLetra) { 
-          // Construir la expresión regular para buscar la palabra completa "TORRE X", "BLOCK X", "EDIFICIO X"
-          // '\\b' es un límite de palabra. 'i' hace la regex insensible a mayúsculas/minúsculas,
-          // aunque ya estamos usando textoUpper.
-          const towerRegex = new RegExp(`\\bTORRE\\s*${torreLetra}\\b|\\bBLOCK\\s*${torreLetra}\\b|\\bEDIFICIO\\s*${torreLetra}\\b`, 'i');
-          
-          // --- NUEVOS DEBUG LOGS PARA COMPARACIÓN DE TORRE ---
-          log(`DEBUG: Comparando Torre:`);
-          log(`DEBUG:   textoUpper (opción): "${textoUpper}"`);
-          log(`DEBUG:   torreLetra (input): "${torreLetra}"`);
-          log(`DEBUG:   Regex usada: ${towerRegex}`);
-          
-          const regexTestResult = towerRegex.test(textoUpper); // Almacenar el resultado del test
-          log(`DEBUG:   Resultado del test Regex para Torre: ${regexTestResult}`); // Nuevo log
-          // --- FIN NUEVOS DEBUG LOGS ---
-
-          if (regexTestResult) { // Usar el resultado almacenado
-              coincideTorre = true;
-          }
-      } else if (!torre) { 
-          // Si no se proporcionó torre, se considera que coincide con cualquier opción de torre
-          coincideTorre = true;
-      }
-      // --- FIN MODIFICACIÓN ---
-
-      const coincideDepto = depto && textoUpper.includes(deptoNumero.toUpperCase()); 
-
-      log(`DEBUG: Evaluando opción (Torre/Depto): "${texto}"`);
-      log(`DEBUG: Coincide Torre (input "${torre}", letra "${torreLetra}"): ${coincideTorre}`);
-      log(`DEBUG: Coincide Depto (input "${deptoNumero}"): ${coincideDepto}`);
-
-      if ((torre && !coincideTorre) || (depto && !coincideDepto)) {
-        log(`DEBUG: Opción "${texto}" no coincide con los criterios de Torre/Depto. Saltando.`);
-        continue;
-      }
-
-      await opcion.scrollIntoView(); 
-      log(`DEBUG: Elemento "${texto}" desplazado a la vista.`);
-
-      const box = await opcion.boundingBox();
-      if (box) {
-        await ctx.reply(`🏢 Seleccionando torre/depto: ${texto}`);
-        
-        await opcion.click(); 
-        log(`DEBUG: Intento de clic estándar en opción: "${texto}"`);
-
-        await page.waitForTimeout(1500); 
-
-        try {
-          await page.waitForSelector('div.drop_down', { hidden: true, timeout: 5000 });
-          log('DEBUG: Modal de selección de dirección ha desaparecido.');
-        } catch (waitError) {
-          log(`WARNING: Modal de selección de dirección NO desapareció después del clic. Detalles: ${waitError.message}`);
-          await page.evaluate(el => el.click(), opcion);
-          log(`DEBUG: Intento de clic con JavaScript en opción: "${texto}"`);
-          await page.waitForTimeout(1500); 
-          try {
-             await page.waitForSelector('div.drop_down', { hidden: true, timeout: 5000 });
-             log('DEBUG: Modal de selección de dirección ha desaparecido después del clic JS.');
-          } catch (jsClickWaitError) {
-              log(`WARNING: Modal de selección de dirección NO desapareció incluso con clic JS. Detalles: ${jsClickWaitError.message}`);
-          }
+            await page.evaluateOnNewDocument(() => {
+                window.actualizarCursorRojo = (x, y) => {
+                    let cursor = document.getElementById('puppeteer-cursor');
+                    if (!cursor) {
+                        cursor = document.createElement('div');
+                        cursor.id = 'puppeteer-cursor';
+                        cursor.style.position = 'absolute';
+                        cursor.style.width = '10px';
+                        cursor.style.height = '10px';
+                        cursor.style.borderRadius = '50%';
+                        cursor.style.backgroundColor = 'red';
+                        cursor.style.zIndex = '99999';
+                        cursor.style.pointerEvents = 'none';
+                        cursor.style.transition = 'transform 0.1s ease-out';
+                        document.body.appendChild(cursor);
+                    }
+                    cursor.style.transform = `translate(${x - 5}px, ${y - 5}px)`;
+                };
+            });
+            await page.exposeFunction('registrarClick', async (x, y) => {
+                console.log(`[BOT2] Click registrado en: (${x}, ${y})`);
+                await actualizarCursorRojo(page, x, y);
+            });
         }
 
-        opcionSeleccionadaFinal = true;
-        log(`✅ Torre/Depto "${texto}" seleccionada.`);
-        break;
-      }
-    }
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        console.log('[BOT2] User Agent configurado.');
 
-    if (!opcionSeleccionadaFinal && opcionesFinales.length > 0) {
-      const primera = opcionesFinales[0];
-      const box = await primera.boundingBox();
-      if (box) {
-        const textoPrimeraOpcion = await page.evaluate(el => el.textContent.trim(), primera);
-        await ctx.reply(`ℹ️ No se encontró una coincidencia exacta para Torre/Depto. Seleccionando primera opción visible por defecto: ${textoPrimeraOpcion}`);
-        
-        await primera.scrollIntoView(); 
-        await primera.click();
-        await page.waitForTimeout(1500); 
+        console.log('[BOT2] Navegando a la URL de inicio de sesión...');
+        await page.goto(process.env.WOM_LOGIN_URL || 'https://example.com/login', { waitUntil: 'networkidle2' });
+        console.log('[BOT2] Página de inicio de sesión cargada.');
 
-        try {
-          await page.waitForSelector('div.drop_down', { hidden: true, timeout: 5000 });
-          log('DEBUG: Modal de selección de dirección ha desaparecido (primera opción).');
-        } catch (waitError) {
-          log(`WARNING: Modal de selección de dirección NO desapareció después de seleccionar la primera opción. Detalles: ${waitError.message}`);
+        // Definir los pasos de interacción
+        const pasos = [
+            { selector: '#usuario', type: 'type', value: process.env.WOM_USER, name: 'Usuario' },
+            { selector: '#password', type: 'type', value: process.env.WOM_PASS, name: 'Contraseña' },
+            { selector: '#datoUsuarioRut', type: 'type', value: '16384931-3', name: 'RUT' }, // RUT codificado
+            { selector: '#btnIngresar', type: 'click', name: 'Botón Ingresar' }
+        ];
+
+        for (const paso of pasos) {
+            console.log(`[BOT2] Ejecutando paso: ${paso.name}`);
+            await page.waitForSelector(paso.selector, { visible: true, timeout: 15000 });
+            const element = await page.$(paso.selector);
+            if (element) {
+                const box = await element.boundingBox();
+                if (box) {
+                    const x = box.x + box.width / 2;
+                    const y = box.y + box.height / 2;
+
+                    if (!browser.process().spawnargs.includes('--headless=new') && !browser.process().spawnargs.includes('--headless')) {
+                        await page.mouse.move(x, y);
+                        await actualizarCursorRojo(page, x, y);
+                    }
+                }
+
+                if (paso.type === 'type') {
+                    await element.click(); // Asegurarse de que el campo esté enfocado
+                    await page.keyboard.down('Control'); // Seleccionar todo el texto
+                    await page.keyboard.press('A');
+                    await page.keyboard.up('Control');
+                    await page.keyboard.press('Delete'); // Borrar el contenido
+                    await element.type(paso.value);
+                    console.log(`[BOT2] Texto "${paso.value}" ingresado en ${paso.name}.`);
+                } else if (paso.type === 'click') {
+                    await element.click();
+                    console.log(`[BOT2] Click en ${paso.name}.`);
+                }
+            } else {
+                throw new Error(`Elemento no encontrado: ${paso.selector}`);
+            }
+            await page.waitForTimeout(500); // Pequeña pausa entre pasos
         }
 
-        log(`✅ Seleccionada la primera opción por defecto: "${textoPrimeraOpcion}".`);
-      }
-    } else if (!opcionSeleccionadaFinal && opcionesFinales.length === 0) {
-      await ctx.reply('❌ No se encontraron opciones de torre/depto para seleccionar.');
-      log('❌ No se encontraron opciones de torre/depto para seleccionar.');
-    }
+        console.log('[BOT2] Inicio de sesión completado. Navegando a la página de dirección...');
+        // Esperar la navegación o un selector específico después del login
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => console.log('[BOT2] No hubo navegación después del login o timeout.'));
 
-    try {
-      await page.waitForSelector('section.modal_cnt.container-row', { visible: true, timeout: 15000 }); 
-      const modal = await page.$('section.modal_cnt.container-row');
-      const buffer = await modal.screenshot();
-      await ctx.replyWithPhoto({ source: buffer });
-      await ctx.reply('📸 Captura del resultado tomada correctamente.');
-      log('✅ Captura del modal de resultado tomada.');
-    } catch (e) {
-      log('⚠️ Modal de resultado no detectado o no apareció a tiempo. Se tomará pantalla completa.');
-      console.error('Error al esperar o tomar captura del modal de resultado:', e); 
-      const buffer = await tomarCapturaBuffer(page); 
-      await ctx.replyWithPhoto({ source: buffer });
-    }
+        // Navegar directamente a la URL de dirección si es necesario, o esperar la redirección
+        // Asegúrate de que esta URL sea la correcta después del login
+        await page.goto(process.env.WOM_DIRECCION_URL || 'https://example.com/address', { waitUntil: 'networkidle2', timeout: 30000 });
+        console.log('[BOT2] Página de dirección cargada.');
 
-  } catch (e) {
-    console.error('❌ Error general:', e);
-    await ctx.reply('⚠️ Error inesperado. Intenta nuevamente o revisa los datos.');
-  } finally {
-    if (browser) await browser.close();
-  }
+        // Rellenar la dirección
+        console.log(`[BOT2] Ingresando dirección: ${calle} ${numero}`);
+        await page.waitForSelector('#direccion', { visible: true, timeout: 15000 });
+        await page.type('#direccion', `${calle} ${numero}`);
+        await page.waitForTimeout(1000); // Esperar sugerencias
+
+        // Seleccionar la primera sugerencia si aparece
+        const sugerenciaSelector = `//li[contains(., '${calle.substring(0, 5).toLowerCase()}') or contains(., '${calle.substring(0, 5).toUpperCase()}')]`;
+        console(`[BOT2] Buscando sugerencia con XPath: ${sugerenciaSelector}`);
+        const [sugerencia] = await page.$x(sugerenciaSelector);
+
+        if (sugerencia) {
+            console.log('[BOT2] Sugerencia encontrada, haciendo click.');
+            await sugerencia.click();
+            await page.waitForTimeout(2000); // Esperar que la selección se procese
+        } else {
+            console.warn('[BOT2] No se encontró sugerencia de autocompletado para la dirección. Continuando...');
+        }
+
+        // Pasos finales de interacción en la página de dirección
+        const pasosFinales = [
+            { selector: '#btnContinuar', type: 'click', name: 'Botón Continuar' },
+            { selector: '#btnVerificar', type: 'click', name: 'Botón Verificar' }
+        ];
+
+        for (const paso of pasosFinales) {
+            console.log(`[BOT2] Ejecutando paso final: ${paso.name}`);
+            await page.waitForSelector(paso.selector, { visible: true, timeout: 15000 });
+            const element = await page.$(paso.selector);
+            if (element) {
+                const box = await element.boundingBox();
+                if (box) {
+                    const x = box.x + box.width / 2;
+                    const y = box.y + box.height / 2;
+                    if (!browser.process().spawnargs.includes('--headless=new') && !browser.process().spawnargs.includes('--headless')) {
+                        await page.mouse.move(x, y);
+                        await actualizarCursorRojo(page, x, y);
+                    }
+                }
+                await element.click();
+                console.log(`[BOT2] Click en ${paso.name}.`);
+            } else {
+                throw new Error(`Elemento final no encontrado: ${paso.selector}`);
+            }
+            await page.waitForTimeout(1000); // Pequeña pausa
+        }
+
+        console.log('[BOT2] Proceso de verificación de factibilidad completado.');
+        await ctx.reply('✅ Verificación de factibilidad finalizada. Revisa el resultado en el sistema WOM.');
+
+        // Aquí podrías añadir lógica para extraer el resultado de la factibilidad de la página
+        // Por ejemplo:
+        // const resultadoFactibilidad = await page.evaluate(() => {
+        //     const elementoResultado = document.querySelector('#idDelElementoResultado');
+        //     return elementoResultado ? elementoResultado.textContent : 'No se pudo obtener el resultado.';
+        // });
+        // await ctx.reply(`Resultado: ${resultadoFactibilidad}`);
+
+    } catch (error) {
+        console.error('[BOT2] Error general:', error);
+        await ctx.reply(`❌ Error al realizar la verificación: ${error.message || 'Error desconocido'}. Por favor, intenta de nuevo más tarde.`);
+    } finally {
+        if (browser) {
+            await browser.close();
+            console.log('[BOT2] Navegador cerrado.');
+        }
+    }
 }
 
-module.exports = { bot2 }
+module.exports = { bot2 }; // Exporta la función para que GESTOR.js pueda usarla
