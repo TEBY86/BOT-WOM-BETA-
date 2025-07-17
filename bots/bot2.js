@@ -114,9 +114,7 @@ async function bot2(ctx, input) {
 
     // Obtener variables de entorno - WOM_USER y WOM_PASS deben seguir viniendo de ENV por seguridad
     const womUser = process.env.WOM_USER;
-    // 🔴 INICIO CAMBIO: Contraseña hardcodeada para depuración. ¡REVERTIR EN PRODUCCIÓN!
-    const womPass = '.4in.88.45....'; // Contraseña hardcodeada para pruebas. ¡CAMBIAR A process.env.WOM_PASS EN PRODUCCIÓN!
-    // 🔴 FIN CAMBIO
+    const womPass = process.env.WOM_PASS;
 
     // 🔴 INICIO CAMBIO: URLs hardcodeadas para depuración
     // ¡ADVERTENCIA! Estas URLs están hardcodeadas directamente en el código para depuración.
@@ -130,11 +128,11 @@ async function bot2(ctx, input) {
     log(`WOM_LOGIN_URL: (Hardcodeada)`);
     // log(`WOM_DIRECCION_URL: (No usada para goto explícito)`); // Comentado ya que no se usa para goto
     log(`WOM_USER: ${womUser ? 'Definido' : 'UNDEFINED'}`);
-    log(`WOM_PASS: (Hardcodeada para pruebas)`); // Indicar que la contraseña está hardcodeada
+    log(`WOM_PASS: ${womPass ? 'Definido' : 'UNDEFINED'}`);
 
-    // Verificar que las variables de entorno cruciales (LOGIN_URL, USER) estén definidas
-    if (!womLoginUrl || !womUser) { // womDireccionUrl y womPass ya no son obligatorias aquí
-        throw new Error('Variables de entorno de WOM (LOGIN_URL, USER) no están definidas. Por favor, revisa la configuración en Railway.');
+    // Verificar que las variables de entorno cruciales (USER, PASS) estén definidas
+    if (!womLoginUrl || !womUser || !womPass) { // womDireccionUrl ya no es obligatoria aquí
+        throw new Error('Variables de entorno de WOM (LOGIN_URL, USER, PASS) no están definidas. Por favor, revisa la configuración en Railway.');
     }
 
     log(`Navegando a la URL de inicio de sesión: ${womLoginUrl}`);
